@@ -1,0 +1,1089 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ezra Koreen</title>
+<meta name="description" content="Ezra Koreen, CS @ Cornell. Experience, projects and interests on a Rubik's cube.">
+<meta name="theme-color" content="#eeede8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #141414;
+    --mute: #8d8b84;
+    --line: rgba(20, 20, 20, .08);
+    --card: #fbfbf8;
+    --bg: #eeede8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    background: radial-gradient(120% 90% at 50% 42%, #f8f7f3 0%, #eeede8 58%, #e5e4de 100%);
+    color: var(--ink);
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: 8px; }
+
+  #gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; opacity: 0; transition: opacity .9s ease; }
+  #gl.grabbing { cursor: grabbing; }
+  #gl.point { cursor: pointer; }
+  .ready #gl { opacity: 1; }
+
+  .shadow { position: fixed; left: 0; top: 0; border-radius: 50%; pointer-events: none; opacity: 0; transition: opacity .9s ease;
+    background: radial-gradient(closest-side, rgba(40, 36, 24, .2), rgba(40, 36, 24, 0)); filter: blur(6px); }
+  .ready .shadow { opacity: 1; }
+
+  .ui { opacity: 0; transition: opacity .8s ease .4s; }
+  .ready .ui { opacity: 1; }
+
+
+  .ctrl { position: fixed; top: 18px; right: 20px; display: flex; gap: 2px; }
+  .ctrl button { font-size: 13px; color: var(--mute); padding: 6px 10px; border-radius: 8px; transition: color .2s, background .2s; }
+  .ctrl button:hover { color: var(--ink); background: rgba(0, 0, 0, .04); }
+  .ctrl button[hidden] { display: none; }
+
+  nav.faces { position: fixed; left: 50%; bottom: max(24px, env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; gap: 2px; padding: 5px;
+    border-radius: 999px; background: rgba(255, 255, 255, .5); border: 1px solid var(--line);
+    -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+  nav.faces button { display: flex; align-items: center; gap: 8px; padding: 7px 13px; border-radius: 999px; font-size: 13px; color: var(--mute); transition: color .2s, background .2s; white-space: nowrap; }
+  nav.faces button:hover { color: var(--ink); }
+  nav.faces i { width: 9px; height: 9px; border-radius: 50%; background: var(--c); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .14); flex: none; }
+  nav.faces button[aria-current="true"] { color: var(--ink); background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, .07); }
+
+  #panel { position: fixed; top: 50%; right: 24px; width: 360px; max-height: calc(100% - 48px); overflow: auto;
+    background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 26px 28px 28px;
+    box-shadow: 0 30px 80px -30px rgba(40, 36, 24, .35), 0 2px 6px rgba(0, 0, 0, .04);
+    opacity: 0; transform: translate(14px, -50%); pointer-events: none; transition: opacity .3s ease, transform .4s cubic-bezier(.2, .8, .2, 1); }
+  #panel.open { opacity: 1; transform: translate(0, -50%); pointer-events: auto; }
+  .p-close { position: absolute; top: 14px; right: 14px; width: 32px; height: 32px; border-radius: 50%; font-size: 20px; line-height: 1; color: var(--mute); }
+  .p-close:hover { color: var(--ink); background: rgba(0, 0, 0, .05); }
+  .p-kicker { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--mute); margin-bottom: 18px; }
+  .p-kicker i { width: 9px; height: 9px; border-radius: 50%; background: var(--c); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .14); }
+  #panel h2 { font-size: 26px; font-weight: 600; letter-spacing: -.025em; line-height: 1.15; padding-right: 28px; }
+  .p-note { font-size: 11px; color: var(--mute); margin-top: 5px; }
+  .p-note:empty { display: none; }
+  .p-role { font-size: 15px; margin-top: 8px; line-height: 1.45; }
+  .p-meta { font-size: 13px; color: var(--mute); margin-top: 4px; }
+  .p-desc { font-size: 14.5px; line-height: 1.55; color: #3a3935; margin-top: 18px; }
+  .p-desc:empty { display: none; }
+  #p-list { list-style: none; margin-top: 20px; display: grid; gap: 11px; }
+  #p-list:empty { display: none; }
+  #p-list li { position: relative; padding-left: 16px; font-size: 14px; line-height: 1.55; color: #3a3935; }
+  #p-list li::before { content: ""; position: absolute; left: 0; top: .72em; width: 6px; height: 1px; background: var(--mute); }
+  .p-extra:empty { display: none; }
+  .p-extra { margin-top: 18px; }
+  .digits { font-size: 10.5px; line-height: 1.6; letter-spacing: .04em; color: #3a3935; font-variant-numeric: tabular-nums; word-spacing: .35em; }
+  .p-actions { display: flex; gap: 8px; }
+  .p-actions button { font-size: 13px; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line); background: #fff; }
+  .p-actions button:hover { border-color: rgba(0, 0, 0, .2); }
+  #p-title a { color: inherit; text-decoration: underline; text-decoration-color: rgba(0, 0, 0, .18); text-decoration-thickness: 1.5px; text-underline-offset: 4px; transition: text-decoration-color .2s; }
+  #p-title a:hover { text-decoration-color: var(--ink); }
+  #p-title .arrow { font-size: .62em; color: var(--mute); vertical-align: .32em; text-decoration: none; display: inline-block; }
+
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+
+  /* no-WebGL fallback: show the content as a plain page */
+  .no-gl, .no-gl body { overflow: auto; }
+  .no-gl #gl, .no-gl .shadow, .no-gl .ui { display: none; }
+  .no-gl #content { position: static; width: auto; height: auto; clip: auto; clip-path: none; white-space: normal; overflow: visible;
+    max-width: 620px; margin: 0 auto; padding: 64px 24px 80px; }
+  .no-gl #content h1 { font-size: 34px; letter-spacing: -.03em; }
+  .no-gl #content h2 { font-size: 13px; color: var(--mute); font-weight: 500; margin: 36px 0 10px; }
+  .no-gl #content li { list-style: none; margin: 0 0 12px; line-height: 1.5; font-size: 15px; }
+  .no-gl #content a { color: var(--ink); }
+
+  @media (max-width: 760px) {
+    .ctrl { top: 10px; right: 8px; }
+    nav.faces button { padding: 8px 10px; gap: 0; }
+    nav.faces button span { display: none; }
+    nav.faces button[aria-current="true"] { gap: 7px; }
+    nav.faces button[aria-current="true"] span { display: inline; }
+    #panel { top: auto; bottom: 12px; left: 12px; right: 12px; width: auto; max-height: 62%; transform: translateY(16px); padding: 22px 22px 24px; }
+    #panel.open { transform: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition-duration: .01s !important; transition-delay: 0s !important; }
+  }
+</style>
+</head>
+<body>
+<canvas id="gl" aria-hidden="true"></canvas>
+<div class="shadow" id="shadow" aria-hidden="true"></div>
+
+<div class="ui">
+  <div class="ctrl">
+    <button id="scramble" type="button">scramble</button>
+    <button id="solve" type="button" hidden>solve</button>
+  </div>
+  <nav class="faces" id="faces" aria-label="Cube faces"></nav>
+</div>
+
+<aside id="panel" role="dialog" aria-modal="false" aria-labelledby="p-title" aria-hidden="true">
+  <button class="p-close" id="p-close" type="button" aria-label="Close">&times;</button>
+  <div class="p-kicker"><i id="p-dot"></i><span id="p-kicker"></span></div>
+  <h2 id="p-title"></h2>
+  <p class="p-note" id="p-note"></p>
+  <p class="p-role" id="p-role"></p>
+  <p class="p-meta" id="p-meta"></p>
+  <p class="p-desc" id="p-desc"></p>
+  <ul id="p-list"></ul>
+  <div class="p-extra" id="p-extra"></div>
+</aside>
+
+<main id="content" class="sr"></main>
+<noscript>
+  <p style="padding:48px 24px;max-width:560px;margin:auto;line-height:1.6">
+    <strong>Ezra Koreen</strong> · CS @ Cornell<br>
+    <a href="mailto:koreen.ezra@gmail.com">koreen.ezra@gmail.com</a> ·
+    <a href="https://www.linkedin.com/in/ezra-koreen">LinkedIn</a> ·
+    <a href="https://github.com/ezrakoreen">GitHub</a>
+  </p>
+</noscript>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+const $ = (s) => document.querySelector(s);
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const touch = matchMedia('(pointer: coarse)').matches;
+const FAMILY = 'Inter, system-ui, -apple-system, "Segoe UI", sans-serif';
+
+/* ------------------------------------------------------------------ content */
+
+// first 700 decimal places
+const PI_DIGITS = '1415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170679821480865132823066470938446095505822317253594081284811174502841027019385211055596446229489549303819644288109756659334461284756482337867831652712019091456485669234603486104543266482133936072602491412737245870066063155881748815209209628292540917153643678925903600113305305488204665213841469519415116094330572703657595919530921861173819326117931051185480744623799627495673518857527248912279381830119491298336733624406566430860213949463952247371907021798609437027705392171762931767523846748184676694051320005681271452635608277857713427577896091736371787214684409012249534301465495853710507922796892589235';
+const PI = '3.' + PI_DIGITS.match(/.{1,10}/g).join(' ');
+
+const ITEMS = {
+  optiver: { title: 'Optiver', role: 'Quantitative Trading Intern', meta: 'Incoming · Summer 2027 · Chicago' },
+  smbc: { title: 'SMBC', role: 'Quantitative Research Intern, Systematic Trading', meta: 'Jun – Aug 2026 · New York', desc: 'UST trade execution' },
+  cuxr: { title: 'CUXR', full: 'Cornell University Extended Reality', role: 'Lead Software Engineer', meta: 'Sep 2025 – present · Ithaca', desc: 'Long-term memory systems for smart glasses' },
+  cvc: { title: 'CVC', full: 'General Catalyst × Cornell Venture Capital', role: 'Software Engineer', meta: 'Feb 2026 – present · Ithaca', desc: 'Automating medical coding for General Catalyst' },
+  katz: { title: 'Katz Lab', full: 'Katz Quantum Information Lab', role: 'Undergraduate Research Assistant', meta: 'May 2025 – Feb 2026 · Ithaca', desc: 'Trapped-ion GKP states' },
+
+  polymarket: { title: 'Polymarket', full: 'Prediction Market Trading', note: 'Sorry no link, can’t leak alpha', role: 'Python · AWS EC2', meta: 'Jul 2026 – present', desc: '$22,800 PnL and 1125x return on capital' },
+  blt: { title: 'BLT', full: 'Byte Latent Transformer', role: 'Python · PyTorch · AWS', meta: 'Apr – May 2026',
+    link: ['github.com/laerdon/blt-replication', 'https://github.com/laerdon/blt-replication'], desc: 'Reproduced Meta FAIR’s tokenizer-free LLM and matched a GPT-2 baseline' },
+  prosperity: { title: 'Prosperity', full: 'IMC Prosperity 4', role: 'Python · Rust', meta: 'Apr 2026',
+    link: ['github.com/ezrakoreen/imc-prosperity-4', 'https://github.com/ezrakoreen/imc-prosperity-4'], desc: 'Placed in the top 1.5% of 18,800+ teams in a global algo trading competition' },
+  pope: { title: 'PoPE', full: 'Memory-Optimized PoPE Attention Kernels', role: 'PyTorch · CUDA · Triton', meta: 'Mar 2026',
+    link: ['github.com/ezrakoreen/pope-memory-optimal', 'https://github.com/ezrakoreen/pope-memory-optimal'], desc: 'Implemented a fused PoPE kernel in Triton, an alternative to RoPE' },
+  pokerbot: { title: 'PokerBot', role: 'Python · PyTorch · OpenCV · TypeScript', meta: 'Jul – Oct 2025',
+    link: ['github.com/ezrakoreen/PokerVision', 'https://github.com/ezrakoreen/PokerVision'], desc: 'Smart glasses poker assistant' },
+
+  rubiks: { title: 'Rubik’s cubes', lines: ['Rubik’s', 'cubes'], role: 'PR: 3.43 seconds. You’re looking at one.', extra: 'cube' },
+  pi: { title: 'Digits of π', lines: ['π'], big: true, role: 'The first 700 decimal places.', extra: 'pi' },
+  zetamac: { title: 'Zetamac', role: '149 on Zetamac, the speed mental-math game.',
+    link: ['arithmetic.zetamac.com', 'https://arithmetic.zetamac.com'] },
+
+  email: { title: 'Email', href: 'mailto:koreen.ezra@gmail.com', label: 'koreen.ezra@gmail.com' },
+  linkedin: { title: 'LinkedIn', href: 'https://www.linkedin.com/in/ezra-koreen', label: 'linkedin.com/in/ezra-koreen' },
+  github: { title: 'GitHub', href: 'https://github.com/ezrakoreen', label: 'github.com/ezrakoreen' },
+};
+
+// r = screen-right and u = screen-up when the face is turned toward you
+const FACES = {
+  F: { name: 'home', color: '#f4f3ee', ink: '#141414', n: [0, 0, 1], r: [1, 0, 0], u: [0, 1, 0] },
+  R: { name: 'experience', color: '#dc3a34', ink: '#ffffff', n: [1, 0, 0], r: [0, 0, -1], u: [0, 1, 0], cells: { '0,0': 'cuxr', '0,2': 'smbc', '1,1': 'optiver', '2,0': 'cvc', '2,2': 'katz' } },
+  L: { name: 'projects', color: '#ff8a1d', ink: '#1b1206', n: [-1, 0, 0], r: [0, 0, 1], u: [0, 1, 0], cells: { '0,0': 'polymarket', '0,2': 'blt', '1,1': 'prosperity', '2,0': 'pope', '2,2': 'pokerbot' } },
+  U: { name: 'interests', color: '#15944c', ink: '#ffffff', n: [0, 1, 0], r: [1, 0, 0], u: [0, 0, -1], cells: { '1,0': 'rubiks', '1,1': 'pi', '1,2': 'zetamac' } },
+  D: { name: 'contact', color: '#2260dc', ink: '#ffffff', n: [0, -1, 0], r: [1, 0, 0], u: [0, 0, 1], cells: { '1,0': 'email', '1,1': 'linkedin', '1,2': 'github' } },
+  B: { name: 'back', color: '#ffd23c', ink: '#1b1606', n: [0, 0, -1], r: [-1, 0, 0], u: [0, 1, 0] },
+};
+const NAV = ['F', 'R', 'L', 'U', 'D'];
+for (const f of Object.values(FACES)) {
+  f.nV = new THREE.Vector3(...f.n); f.rV = new THREE.Vector3(...f.r); f.uV = new THREE.Vector3(...f.u);
+}
+for (const [k, f] of Object.entries(FACES)) for (const id of Object.values(f.cells || {})) ITEMS[id].face = k;
+
+/* -------------------------------------------- accessible / fallback content */
+
+(function buildContent() {
+  const el = $('#content');
+  const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const sec = (title, ids) => `<section><h2>${title}</h2><ul>${ids.map((id) => {
+    const it = ITEMS[id];
+    const head = it.href ? `<a href="${it.href}">${esc(it.label)}</a>` : `<strong>${esc(it.full || it.title)}</strong>`;
+    const bits = [it.role, it.meta].filter(Boolean).map(esc).join(' · ');
+    const link = it.link ? ` · <a href="${it.link[1]}">${esc(it.link[0])}</a>` : '';
+    return `<li>${head}${bits ? ' — ' + bits : ''}${link}${it.desc ? '<br>' + esc(it.desc) : ''}${it.list ? '<br>' + it.list.map(esc).join(' ') : ''}</li>`;
+  }).join('')}</ul></section>`;
+  el.innerHTML = `<h1>Ezra Koreen</h1><p>CS @ Cornell</p>` +
+    sec('Experience', ['optiver', 'smbc', 'cuxr', 'cvc', 'katz']) +
+    sec('Projects', ['polymarket', 'blt', 'prosperity', 'pope', 'pokerbot']) +
+    sec('Interests', ['rubiks', 'pi', 'zetamac']) +
+    sec('Contact', ['email', 'linkedin', 'github']);
+})();
+
+/* ------------------------------------------------------------------ renderer */
+
+const canvas = $('#gl');
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
+} catch (e) { renderer = null; }
+if (!renderer || !renderer.getContext()) {
+  document.documentElement.classList.add('no-gl');
+  throw new Error('WebGL unavailable');
+}
+renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); document.documentElement.classList.add('no-gl'); });
+
+const scene = new THREE.Scene();
+const FOV = 30, TAN = Math.tan(THREE.MathUtils.degToRad(FOV / 2));
+const camera = new THREE.PerspectiveCamera(FOV, 1, 0.1, 100);
+
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.add(new THREE.AmbientLight(0xffffff, 1.15));
+const key = new THREE.DirectionalLight(0xffffff, 1.2); key.position.set(1.5, 2.2, 8); scene.add(key);
+const fill = new THREE.DirectionalLight(0xffffff, 0.35); fill.position.set(-6, -3, 2); scene.add(fill);
+
+/* ------------------------------------------------------------- face textures */
+
+const STK = 0.88;                                   // sticker size, in cubie units
+const TEX = (devicePixelRatio > 1.5 && !touch) ? 1536 : 1024;
+const CELL = TEX / 3, INSET = CELL * (1 - STK) / 2, SW = CELL * STK;
+const maxAniso = renderer.capabilities.getMaxAnisotropy();
+
+for (const f of Object.values(FACES)) {
+  const c = document.createElement('canvas'); c.width = c.height = TEX;
+  f.ctx = c.getContext('2d');
+  f.tex = new THREE.CanvasTexture(c);
+  f.tex.colorSpace = THREE.SRGBColorSpace;
+  f.tex.anisotropy = maxAniso;
+}
+
+function setFont(g, weight, size, track = 0) {
+  g.font = `${weight} ${size}px ${FAMILY}`;
+  g.letterSpacing = `${track * size}px`;
+}
+const cellXY = (row, col) => [col * CELL + INSET, row * CELL + INSET];
+
+// The name sits on the white center piece, where a real cube has its logo.
+function homeSticker(g, f) {
+  const [x, y] = cellXY(1, 1), cx = x + SW / 2, cy = y + SW / 2;
+  let size = SW * 0.25;
+  setFont(g, 600, size, -0.035);
+  const w = g.measureText('Koreen').width;
+  if (w > SW * 0.8) { size *= SW * 0.8 / w; setFont(g, 600, size, -0.035); }
+  const sub = SW * 0.095, lh = size * 1.02;
+  const top = cy - (size * 0.72 + lh + sub * 2.1) / 2 + size * 0.72;
+  g.fillStyle = f.ink; g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+  g.fillText('Ezra', cx, top);
+  g.fillText('Koreen', cx, top + lh);
+  setFont(g, 500, sub, 0);
+  g.globalAlpha = 0.68;
+  g.fillText('CS @ Cornell', cx, top + lh + sub * 2.1);
+  g.globalAlpha = 1;
+}
+
+function itemSticker(g, f, row, col, it) {
+  const [x, y] = cellXY(row, col), cx = x + SW / 2, cy = y + SW / 2;
+  const lines = it.lines || [it.title];
+  let size = SW * (it.big ? 0.4 : 0.19);
+  setFont(g, 600, size, -0.025);
+  const widest = Math.max(...lines.map((l) => g.measureText(l).width));
+  if (widest > SW * 0.78) { size *= SW * 0.78 / widest; setFont(g, 600, size, -0.025); }
+  const subSize = SW * 0.105, lh = size * 1.08;
+  const blockH = size * 0.72 + (lines.length - 1) * lh + (it.sub ? subSize * 1.9 : 0);
+  let by = cy - blockH / 2 + size * 0.72;
+  g.fillStyle = f.ink; g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+  lines.forEach((l, i) => g.fillText(l, cx, by + i * lh));
+  if (it.sub) {
+    setFont(g, 500, subSize, 0.01);
+    g.globalAlpha = 0.72;
+    g.fillText(it.sub, cx, by + (lines.length - 1) * lh + subSize * 1.9);
+    g.globalAlpha = 1;
+  }
+}
+
+function drawFace(k) {
+  const f = FACES[k], g = f.ctx;
+  g.fillStyle = f.color; g.fillRect(0, 0, TEX, TEX);
+  if (k === 'F') homeSticker(g, f);
+  for (const [rc, id] of Object.entries(f.cells || {})) {
+    const [r, c] = rc.split(',').map(Number);
+    itemSticker(g, f, r, c, ITEMS[id]);
+  }
+  setFont(g, 400, 10);
+  f.tex.needsUpdate = true;
+}
+const drawAll = () => { Object.keys(FACES).forEach(drawFace); dirty = 3; };
+
+/* --------------------------------------------------------------------- cube */
+
+const cubeGroup = new THREE.Group();
+scene.add(cubeGroup);
+
+function roundedRect(w, r) {
+  const s = new THREE.Shape(), h = w / 2;
+  s.moveTo(-h + r, -h); s.lineTo(h - r, -h); s.quadraticCurveTo(h, -h, h, -h + r);
+  s.lineTo(h, h - r); s.quadraticCurveTo(h, h, h - r, h);
+  s.lineTo(-h + r, h); s.quadraticCurveTo(-h, h, -h, h - r);
+  s.lineTo(-h, -h + r); s.quadraticCurveTo(-h, -h, -h + r, -h);
+  return s;
+}
+const SHAPE = roundedRect(STK, 0.1);
+function stickerGeo(col, row) {
+  const geo = new THREE.ShapeGeometry(SHAPE, 6);
+  const p = geo.attributes.position, uv = geo.attributes.uv;
+  for (let i = 0; i < p.count; i++) uv.setXY(i, (col + 0.5 + p.getX(i)) / 3, (2 - row + 0.5 + p.getY(i)) / 3);
+  uv.needsUpdate = true;
+  return geo;
+}
+
+const BODY = 0.972, SURF = BODY / 2 + 0.0015;
+const bodyGeo = new RoundedBoxGeometry(BODY, BODY, BODY, 4, 0.1);
+const bodyMat = new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.32, metalness: 0, envMapIntensity: 0.9 });
+
+const cubies = [], stickers = [], pickables = [];
+for (let x = -1; x <= 1; x++) for (let y = -1; y <= 1; y++) for (let z = -1; z <= 1; z++) {
+  if (!x && !y && !z) continue;
+  const cubie = new THREE.Group();
+  cubie.position.set(x, y, z);
+  cubie.userData.home = cubie.position.clone();
+  const body = new THREE.Mesh(bodyGeo, bodyMat);
+  cubie.add(body); pickables.push(body);
+  for (const [k, f] of Object.entries(FACES)) {
+    if (cubie.position.dot(f.nV) !== 1) continue;
+    const col = cubie.position.dot(f.rV) + 1, row = 1 - cubie.position.dot(f.uV);
+    const mat = new THREE.MeshStandardMaterial({
+      map: f.tex, emissive: 0xffffff, emissiveMap: f.tex, emissiveIntensity: 0,
+      roughness: 0.52, metalness: 0, envMapIntensity: 0.2,
+      polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1,
+    });
+    const s = new THREE.Mesh(stickerGeo(col, row), mat);
+    s.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(f.rV, f.uV, f.nV));
+    s.position.copy(f.nV).multiplyScalar(SURF);
+    s.userData = { face: k, item: (f.cells || {})[`${row},${col}`] || null, n: f.nV.clone(), lift: 0, liftT: 0 };
+    cubie.add(s); stickers.push(s); pickables.push(s);
+  }
+  cubeGroup.add(cubie); cubies.push(cubie);
+}
+
+/* -------------------------------------------------------------------- turns */
+
+const AXES = { x: new THREE.Vector3(1, 0, 0), y: new THREE.Vector3(0, 1, 0), z: new THREE.Vector3(0, 0, 1) };
+const _q = new THREE.Quaternion(), _m = new THREE.Matrix4();
+const queue = [];
+let turning = null, history = [];
+
+function snapCubie(c) {
+  c.position.set(Math.round(c.position.x), Math.round(c.position.y), Math.round(c.position.z));
+  _m.makeRotationFromQuaternion(c.quaternion);
+  const e = _m.elements;
+  for (const i of [0, 1, 2, 4, 5, 6, 8, 9, 10]) e[i] = Math.round(e[i]);
+  c.quaternion.setFromRotationMatrix(_m);
+}
+function record(m) {
+  const last = history[history.length - 1];
+  if (last && last.axis === m.axis && last.layer === m.layer) {
+    const d = (((last.dir + m.dir) % 4) + 4) % 4;
+    if (d === 0) history.pop(); else last.dir = d === 3 ? -1 : d;
+  } else history.push({ ...m });
+}
+function doMove(m, dur, { auto = false, rec = true } = {}) {
+  if (rec) record(m);
+  queue.push({ m, dur: reduce ? 1 : dur * (Math.abs(m.dir) === 2 ? 1.45 : 1), auto });
+  updateControls();
+}
+function applyInstant(m) {
+  _q.setFromAxisAngle(AXES[m.axis], m.dir * Math.PI / 2);
+  for (const c of cubies) if (Math.round(c.position[m.axis]) === m.layer) {
+    c.position.applyQuaternion(_q); c.quaternion.premultiply(_q); snapCubie(c);
+  }
+  record(m);
+}
+function startTurn(now) {
+  const { m, dur, auto } = queue.shift();
+  const members = cubies.filter((c) => Math.round(c.position[m.axis]) === m.layer);
+  turning = { m, dur, auto, t0: now, members, p0: members.map((c) => c.position.clone()), q0: members.map((c) => c.quaternion.clone()) };
+}
+const easeOut = (t) => 1 - Math.pow(1 - t, 3);
+const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+function stepTurn(now, force = false) {
+  const T = turning;
+  const t = force ? 1 : Math.min(1, (now - T.t0) / T.dur);
+  const e = T.auto ? easeInOut(t) : easeOut(t);
+  _q.setFromAxisAngle(AXES[T.m.axis], T.m.dir * Math.PI / 2 * e);
+  T.members.forEach((c, i) => { c.position.copy(T.p0[i]).applyQuaternion(_q); c.quaternion.copy(T.q0[i]).premultiply(_q); });
+  if (t >= 1) {
+    T.members.forEach(snapCubie);
+    turning = null;
+    if (!queue.length && isSolved()) history = [];
+    updateControls();
+  }
+}
+function isSolved() {
+  return cubies.every((c) => c.position.equals(c.userData.home) && Math.abs(c.quaternion.w) > 0.9999);
+}
+const autoBusy = () => (turning && turning.auto) || queue.some((q) => q.auto);
+
+function randomMoves(n) {
+  const out = []; let prev = '';
+  while (out.length < n) {
+    const axis = 'xyz'[Math.floor(Math.random() * 3)];
+    if (axis === prev) continue;
+    prev = axis;
+    out.push({ axis, layer: Math.random() < 0.5 ? -1 : 1, dir: [1, -1, 2][Math.floor(Math.random() * 3)] });
+  }
+  return out;
+}
+function scramble() {
+  if (autoBusy()) return;
+  randomMoves(20).forEach((m) => doMove(m, 95, { auto: true }));
+}
+function solve(per) {
+  if (!history.length) return;
+  const seq = history.slice().reverse().map((m) => ({ ...m, dir: -m.dir }));
+  history = [];
+  const d = per || Math.max(70, Math.min(130, 2400 / seq.length));
+  seq.forEach((m) => doMove(m, d, { auto: true, rec: false }));
+  updateControls();
+}
+
+/* --------------------------------------------------------------------- view */
+
+const TILT = touch || innerWidth < 760
+  ? new THREE.Quaternion().setFromEuler(new THREE.Euler(0.24, -0.3, 0, 'XYZ'))
+  : new THREE.Quaternion().setFromEuler(new THREE.Euler(0.3, -0.44, 0, 'XYZ'));
+const TILT_INV = TILT.clone().invert();
+// orientation that turns face k toward the viewer, upright (before the tilt)
+function faceBase(k) {
+  const f = FACES[k];
+  return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(f.rV, f.uV, f.nV).transpose());
+}
+const faceQuat = (k) => TILT.clone().multiply(faceBase(k));
+// all 24 axis-aligned orientations: any face in front, any face on top
+const ORIENTS = [];
+for (const k of Object.keys(FACES)) for (let r = 0; r < 4; r++) {
+  ORIENTS.push(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), r * Math.PI / 2).multiply(faceBase(k)));
+}
+function nearestOrient(base) {
+  let best = ORIENTS[0], bd = -1;
+  for (const o of ORIENTS) { const d = Math.abs(o.dot(base)); if (d > bd) { bd = d; best = o; } }
+  return best;
+}
+const targetQ = faceQuat('F');
+function goFace(k) { targetQ.copy(faceQuat(k)); dirty = 2; }
+// settle on the closest aligned orientation, keeping whichever face is on top
+function snapView(q = cubeGroup.quaternion) {
+  targetQ.copy(TILT).multiply(nearestOrient(TILT_INV.clone().multiply(q)));
+  dirty = 2;
+}
+function frontFace(q = cubeGroup.quaternion) {
+  let best = 'F', bz = -2;
+  const v = new THREE.Vector3();
+  for (const [k, f] of Object.entries(FACES)) {
+    const z = v.copy(f.nV).applyQuaternion(q).z;
+    if (z > bz) { bz = z; best = k; }
+  }
+  return best;
+}
+function stepView(axis, ang) {
+  const base = nearestOrient(TILT_INV.clone().multiply(targetQ));
+  const q = new THREE.Quaternion().setFromAxisAngle(AXES[axis], ang).multiply(base);
+  targetQ.copy(TILT).multiply(nearestOrient(q));
+  dirty = 2;
+}
+
+let W = 1, H = 1, dist = 12, wpp = 0.01;
+const shadowEl = $('#shadow');
+function resize() {
+  W = innerWidth; H = innerHeight;
+  renderer.setSize(W, H);
+  camera.aspect = W / H;
+  const small = W < 760;
+  const R = small ? 2.15 : 2.05;
+  dist = Math.max(R / ((small ? 0.5 : 0.62) * TAN), R / ((small ? 0.9 : 0.86) * TAN * camera.aspect));
+  camera.position.set(0, 0, dist);
+  camera.updateProjectionMatrix();
+  wpp = 2 * dist * TAN / H;
+  dirty = 3;
+}
+addEventListener('resize', resize);
+
+/* ---------------------------------------------------------------- picking */
+
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+function pick(e) {
+  cubeGroup.updateMatrixWorld(true);
+  ndc.set((e.clientX / W) * 2 - 1, -(e.clientY / H) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const hit = ray.intersectObjects(pickables, false).find((h) => h.object.parent && h.object.parent.userData.home);
+  if (!hit) return null;
+  return {
+    obj: hit.object, cubie: hit.object.parent, point: hit.point.clone(),
+    normal: hit.face.normal.clone().transformDirection(hit.object.matrixWorld),
+    sticker: hit.object.geometry !== bodyGeo ? hit.object : null,
+  };
+}
+function toScreen(vLocal) {
+  const v = cubeGroup.localToWorld(vLocal.clone()).project(camera);
+  return new THREE.Vector2((v.x + 1) / 2 * W, (1 - v.y) / 2 * H);
+}
+function roundAxis(v) {
+  const a = [Math.abs(v.x), Math.abs(v.y), Math.abs(v.z)];
+  const i = a.indexOf(Math.max(...a));
+  const out = new THREE.Vector3();
+  out.setComponent(i, Math.sign(v.getComponent(i)));
+  return out;
+}
+function twistFromDrag(d) {
+  const invQ = cubeGroup.quaternion.clone().invert();
+  const n = roundAxis(d.hit.normal.clone().applyQuaternion(invQ));
+  const p = cubeGroup.worldToLocal(d.hit.point.clone());
+  const drag = new THREE.Vector2(d.x - d.x0, d.y - d.y0).normalize();
+  let best = null, bestDot = 0;
+  for (const a of Object.values(AXES)) {
+    if (Math.abs(a.dot(n)) > 0.5) continue;
+    const s0 = toScreen(p), s1 = toScreen(p.clone().addScaledVector(a, 0.6));
+    const dir = s1.sub(s0);
+    if (dir.lengthSq() < 1e-6) continue;
+    const dot = dir.normalize().dot(drag);
+    if (Math.abs(dot) > Math.abs(bestDot)) { bestDot = dot; best = a; }
+  }
+  if (!best || Math.abs(bestDot) < 0.35) return;
+  const k = new THREE.Vector3().crossVectors(n, best);
+  const axis = Math.abs(k.x) > 0.5 ? 'x' : Math.abs(k.y) > 0.5 ? 'y' : 'z';
+  const layer = Math.round(d.hit.cubie.position[axis]);
+  doMove({ axis, layer, dir: Math.sign(k[axis]) * Math.sign(bestDot) }, 190);
+}
+
+// Whole-cube turn from a background drag: the pointer grabs the nearest face of
+// a larger invisible box around the cube, and the cube turns about whichever of
+// its own axes moves that grabbed point most nearly along the drag.
+const GRAB = [3.2, 7].map((h) => new THREE.Box3(new THREE.Vector3(-h, -h, -h), new THREE.Vector3(h, h, h)));
+function pickSpin(d) {
+  cubeGroup.updateMatrixWorld(true);
+  ndc.set((d.x0 / W) * 2 - 1, -(d.y0 / H) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const local = ray.ray.clone().applyMatrix4(cubeGroup.matrixWorld.clone().invert());
+  let p = null, box = null;
+  for (const b of GRAB) { p = local.intersectBox(b, new THREE.Vector3()); if (p) { box = b; break; } }
+  if (!p) return null;
+  const h = box.max.x;
+  const n = roundAxis(new THREE.Vector3(Math.abs(p.x) > h * 0.999 ? p.x : 0, Math.abs(p.y) > h * 0.999 ? p.y : 0, Math.abs(p.z) > h * 0.999 ? p.z : 0));
+  const drag2 = new THREE.Vector2(d.x - d.x0, d.y - d.y0).normalize();
+  const s0 = toScreen(p);
+  let best = null;
+  for (const a of Object.values(AXES)) {
+    if (Math.abs(a.dot(n)) > 0.5) continue;
+    const eps = 0.02;
+    const v = toScreen(p.clone().addScaledVector(new THREE.Vector3().crossVectors(a, p), eps)).sub(s0).divideScalar(eps);
+    const speed = v.length();
+    if (speed < 1e-3) continue;
+    const dot = v.clone().normalize().dot(drag2);
+    if (!best || Math.abs(dot) > Math.abs(best.dot)) best = { axis: a, dot };
+  }
+  if (!best) return null;
+  best.q0 = cubeGroup.quaternion.clone();
+  best.d0 = drag2;
+  return best;
+}
+
+
+/* -------------------------------------------------------- the loose sticker */
+// Triple-click the red sticker on the red–yellow edge and its corner lifts. Peel it
+// off and it drops to the floor, revealing a note on the plastic underneath. Drag it
+// back onto its spot to stick it on again.
+const egg = (() => {
+  const cubie = cubies.find((c) => c.userData.home.x === 1 && c.userData.home.y === 0 && c.userData.home.z === -1);
+  const mesh = cubie.children.find((m) => m.userData.face === 'R');
+  const n = mesh.userData.n.clone();
+  const homePos = n.clone().multiplyScalar(SURF), homeQuat = mesh.quaternion.clone();
+  const col = 2, row = 1;                                                       // middle-right of the red face
+  const HALF = STK / 2, L = HALF * Math.SQRT2, SEG = 26;
+  const D = new THREE.Vector2(Math.SQRT1_2, Math.SQRT1_2);                      // toward the top-right corner
+  mesh.userData.egg = true;
+
+  // a finely divided sticker so it can bend; rounded corners come from an alpha mask
+  const geo = new THREE.PlaneGeometry(STK, STK, SEG, SEG);
+  geo.setAttribute('uv1', geo.attributes.uv.clone());
+  const pos = geo.attributes.position, uv = geo.attributes.uv;
+  const flat = pos.array.slice();
+  for (let i = 0; i < pos.count; i++) uv.setXY(i, (col + 0.5 + flat[i * 3]) / 3, (2 - row + 0.5 + flat[i * 3 + 1]) / 3);
+  const mc = document.createElement('canvas'); mc.width = mc.height = 256;
+  const mg = mc.getContext('2d');
+  mg.fillStyle = '#000'; mg.fillRect(0, 0, 256, 256);
+  mg.fillStyle = '#fff'; mg.beginPath(); mg.roundRect(0, 0, 256, 256, 0.1 / STK * 256); mg.fill();
+  const mask = new THREE.CanvasTexture(mc); mask.channel = 1;
+  mesh.geometry.dispose(); mesh.geometry = geo;
+  mesh.material.alphaMap = mask; mesh.material.alphaTest = 0.5; mesh.material.needsUpdate = true;
+  const back = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0xe9e4dc, roughness: 0.9, alphaMap: mask, alphaTest: 0.5, side: THREE.BackSide }));
+  mesh.add(back);
+
+  // the note printed on the plastic under the sticker
+  const cc = document.createElement('canvas'); cc.width = cc.height = 512;
+  const ctex = new THREE.CanvasTexture(cc); ctex.colorSpace = THREE.SRGBColorSpace; ctex.anisotropy = maxAniso;
+  function drawCredit() {
+    const g = cc.getContext('2d');
+    g.clearRect(0, 0, 512, 512);
+    g.fillStyle = '#8e8e8e'; g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+    g.font = `500 58px ${FAMILY}`;
+    g.fillText('Idea credit:', 256, 244);
+    g.fillText('Laerdon Kim', 256, 318);
+    ctex.needsUpdate = true;
+  }
+  drawCredit();
+  const credit = new THREE.Mesh(new THREE.PlaneGeometry(STK, STK), new THREE.MeshBasicMaterial({ map: ctex, transparent: true, depthWrite: false }));
+  credit.quaternion.copy(homeQuat);
+  credit.position.copy(n).multiplyScalar(SURF - 0.001);
+  credit.visible = false;
+  cubie.add(credit);
+
+  // Peel `p` (0 = stuck flat, 1 = fully off): everything past a fold line that moves
+  // from the corner across the sticker curls up around a small cylinder.
+  function shape(p) {
+    const fold = L - p * 2 * L, R = 0.06, phiMax = 1.7 + 1.1 * Math.min(p, 1);
+    for (let i = 0; i < pos.count; i++) {
+      const x = flat[i * 3], y = flat[i * 3 + 1];
+      const cur = x * D.x + y * D.y, sd = cur - fold;
+      let nx = x, ny = y, nz = 0;
+      if (p > 0 && sd > 0) {
+        let along, z;
+        const a = sd / R;
+        if (a <= phiMax) { along = fold + R * Math.sin(a); z = R * (1 - Math.cos(a)); }
+        else {
+          const r = sd - R * phiMax;
+          along = fold + R * Math.sin(phiMax) + r * Math.cos(phiMax);
+          z = R * (1 - Math.cos(phiMax)) + r * Math.sin(phiMax);
+        }
+        nx = x + (along - cur) * D.x; ny = y + (along - cur) * D.y; nz = z;
+      }
+      pos.setXYZ(i, nx, ny, nz);
+    }
+    pos.needsUpdate = true;
+    geo.computeVertexNormals();
+    geo.computeBoundingSphere();
+  }
+
+  const GROUND = -2.05, CARRY_Z = 1.8;
+  const E = {
+    mesh, state: 'stuck', p: 0, pT: 0,
+    clicks: [], vel: new THREE.Vector3(), spin: new THREE.Vector3(),
+    tw: null, carryPos: new THREE.Vector3(), carryQuat: new THREE.Quaternion(), magnet: false,
+  };
+  const v3 = new THREE.Vector3(), q4 = new THREE.Quaternion();
+
+  function worldToScreen(v) { const s = v.clone().project(camera); return new THREE.Vector2((s.x + 1) / 2 * W, (1 - s.y) / 2 * H); }
+  function slotPose() {
+    cubeGroup.updateMatrixWorld(true);
+    const p = cubie.localToWorld(homePos.clone());
+    const q = cubie.getWorldQuaternion(new THREE.Quaternion()).multiply(homeQuat);
+    const facing = new THREE.Vector3(0, 0, 1).applyQuaternion(q).dot(camera.position.clone().sub(p).normalize());
+    return { p, q, facing };
+  }
+
+  E.tap = (now) => {
+    if (E.state !== 'stuck') return;
+    E.clicks = E.clicks.filter((t) => now - t < 800);
+    E.clicks.push(now);
+    if (E.clicks.length >= 3) { E.clicks = []; E.state = 'lifted'; E.pT = 0.17; credit.visible = true; }
+  };
+  E.hit = (e) => {
+    if (E.state !== 'lifted' && E.state !== 'fallen') return false;
+    mesh.updateMatrixWorld(true);
+    ndc.set((e.clientX / W) * 2 - 1, -(e.clientY / H) * 2 + 1);
+    ray.setFromCamera(ndc, camera);
+    if (ray.intersectObjects([mesh, back], false).length) return true;
+    // a lifted sticker is easy to grab anywhere around it, including the curled corner
+    if (E.state !== 'lifted') return false;
+    const c = worldToScreen(mesh.localToWorld(new THREE.Vector3(0, 0, 0)));
+    const r = worldToScreen(mesh.localToWorld(new THREE.Vector3(HALF, HALF, 0))).distanceTo(c);
+    return c.distanceTo(new THREE.Vector2(e.clientX, e.clientY)) < r * 1.15;
+  };
+  E.grab = (d) => {
+    if (E.state === 'lifted') {
+      d.mode = 'peel';
+      mesh.updateMatrixWorld(true);
+      d.p0 = E.p;
+      d.across = worldToScreen(mesh.localToWorld(new THREE.Vector3(HALF, HALF, 0)))
+        .distanceTo(worldToScreen(mesh.localToWorld(new THREE.Vector3(-HALF, -HALF, 0))));
+    } else {
+      d.mode = 'carry';
+      E.state = 'carry';
+      E.magnet = false;
+      E.carryPos.copy(mesh.position);
+      E.carryQuat.copy(mesh.quaternion);
+    }
+  };
+  E.move = (d) => {
+    if (d.mode === 'peel') {
+      const pulled = Math.hypot(d.x - d.x0, d.y - d.y0) / Math.max(d.across, 40);
+      E.pT = Math.min(1, d.p0 + pulled * 0.9);
+      if (E.pT >= 0.97) { E.pT = 1; d.mode = 'none'; }
+    } else if (d.mode === 'carry') {
+      ndc.set((d.x / W) * 2 - 1, -(d.y / H) * 2 + 1);
+      ray.setFromCamera(ndc, camera);
+      const t = (CARRY_Z - ray.ray.origin.z) / ray.ray.direction.z;
+      const at = ray.ray.at(t, new THREE.Vector3());
+      const slot = slotPose();
+      E.magnet = slot.facing > 0.15 && worldToScreen(slot.p).distanceTo(new THREE.Vector2(d.x, d.y)) < 70;
+      if (E.magnet) { E.carryPos.copy(slot.p); E.carryQuat.copy(slot.q); }
+      else { E.carryPos.copy(at); E.carryQuat.identity(); }
+    }
+  };
+  E.release = (d) => {
+    if (d.mode === 'peel') E.pT = E.p > 0.5 ? 1 : 0.17;
+    else if (d.mode === 'carry') {
+      // a tap (no drag) on the fallen sticker also puts it back
+      if (E.magnet || !d.moved) { const s = slotPose(); E.state = 'attaching'; E.tw = { t: 0, p0: mesh.position.clone(), q0: mesh.quaternion.clone(), p1: s.p, q1: s.q }; }
+      else { E.state = 'falling'; E.vel.set(0, 0, 0); E.spin.set(0, 0, 0); }
+    }
+  };
+
+  function fall() {
+    cubeGroup.updateMatrixWorld(true);
+    const nW = n.clone().transformDirection(cubie.matrixWorld);
+    scene.attach(mesh);
+    E.state = 'falling';
+    E.vel.copy(nW).multiplyScalar(1.3).add(v3.set(0, 1.5, 1.1));
+    E.spin.set((Math.random() - 0.5) * 6, (Math.random() - 0.5) * 6, (Math.random() - 0.5) * 4);
+  }
+  function land() {
+    E.state = 'landing';
+    const q1 = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2 + 0.55, 0, (Math.random() - 0.5) * 0.9, 'XYZ'));
+    const p1 = new THREE.Vector3(THREE.MathUtils.clamp(mesh.position.x, -2.3, 2.3), GROUND, THREE.MathUtils.clamp(mesh.position.z, 0.6, 2.4));
+    E.tw = { t: 0, p0: mesh.position.clone(), q0: mesh.quaternion.clone(), p1, q1 };
+  }
+
+  E.update = (dt) => {
+    const st = E.state;
+    if (st === 'stuck' || st === 'fallen') return false;
+    if (st === 'lifted') {
+      if (Math.abs(E.pT - E.p) > 0.0005) { E.p += (E.pT - E.p) * Math.min(1, dt * (reduce ? 60 : 12)); shape(E.p); }
+      else if (E.p !== E.pT) { E.p = E.pT; shape(E.p); }
+      if (E.p >= 0.97 && E.pT >= 1) fall();
+      return true;
+    }
+    if (st === 'falling') {
+      E.vel.y -= 9.8 * dt;
+      mesh.position.addScaledVector(E.vel, dt);
+      const w = E.spin.length();
+      if (w > 0) mesh.quaternion.premultiply(q4.setFromAxisAngle(v3.copy(E.spin).normalize(), w * dt));
+      E.p *= Math.exp(-dt * 4); shape(E.p);
+      if (mesh.position.y <= GROUND && E.vel.y < 0) land();
+      return true;
+    }
+    if (st === 'landing' || st === 'attaching') {
+      const T = E.tw;
+      T.t = Math.min(1, T.t + dt / (st === 'landing' ? 0.32 : 0.22));
+      const k = 1 - Math.pow(1 - T.t, 3);
+      mesh.position.lerpVectors(T.p0, T.p1, k);
+      mesh.quaternion.slerpQuaternions(T.q0, T.q1, k);
+      if (E.p > 0) { E.p *= Math.exp(-dt * 10); if (E.p < 0.002) E.p = 0; shape(E.p); }
+      if (T.t >= 1) {
+        if (st === 'landing') { E.state = 'fallen'; E.p = 0; shape(0); }
+        else {
+          cubie.attach(mesh);
+          mesh.position.copy(homePos); mesh.quaternion.copy(homeQuat);
+          E.state = 'stuck'; E.p = E.pT = 0; shape(0); credit.visible = false;
+          mesh.userData.lift = mesh.userData.liftT = 0;
+        }
+      }
+      return true;
+    }
+    if (st === 'carry') {
+      const k = 1 - Math.exp(-dt * 18);
+      mesh.position.lerp(E.carryPos, k);
+      mesh.quaternion.slerp(E.carryQuat, k);
+      return true;
+    }
+    return false;
+  };
+  E.redraw = drawCredit;
+  return E;
+})();
+
+/* ------------------------------------------------------------- interaction */
+
+let drag = null, orbiting = false, hovered = null, interacted = false;
+
+function hideHint() { interacted = true; }
+
+canvas.addEventListener('pointerdown', (e) => {
+  if (drag) return;
+  canvas.setPointerCapture(e.pointerId);
+  // finish a user twist that is still animating so the layer math is exact
+  if (turning && !turning.auto) stepTurn(performance.now(), true);
+  if (egg.hit(e)) {
+    drag = { id: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, px: e.clientX, py: e.clientY, hit: null, mode: 'egg', moved: false, done: false };
+    egg.grab(drag);
+    canvas.classList.add('grabbing'); setHover(null);
+    return;
+  }
+  const hit = pick(e);
+  drag = { id: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, px: e.clientX, py: e.clientY, hit, mode: hit ? 'cube' : 'orbit', moved: false, done: false };
+  if (!hit) { canvas.classList.add('grabbing'); }
+  setHover(null);
+});
+canvas.addEventListener('pointermove', (e) => {
+  if (!drag) { if (e.pointerType === 'mouse') hover(e); return; }
+  if (e.pointerId !== drag.id) return;
+  drag.x = e.clientX; drag.y = e.clientY;
+  const dist = Math.hypot(drag.x - drag.x0, drag.y - drag.y0);
+  if (dist > (e.pointerType === 'mouse' ? 6 : 10)) drag.moved = true;
+  if (drag.mode === 'peel' || drag.mode === 'carry' || drag.mode === 'none') { egg.move(drag); return; }
+  if (drag.mode === 'orbit' && drag.moved) {
+    if (!drag.spin) drag.spin = pickSpin(drag);
+    if (drag.spin) {
+      orbiting = true;
+      const S = drag.spin;
+      // how far the pointer has travelled in the direction the drag started
+      const along = (drag.x - drag.x0) * S.d0.x + (drag.y - drag.y0) * S.d0.y;
+      cubeGroup.quaternion.copy(S.q0).multiply(_q.setFromAxisAngle(S.axis, Math.sign(S.dot) * along * 0.0075));
+    }
+    hideHint();
+  } else if (drag.mode === 'cube' && drag.moved && !drag.done && dist > 14) {
+    drag.done = true;
+    if (!autoBusy()) { twistFromDrag(drag); hideHint(); }
+  }
+  drag.px = e.clientX; drag.py = e.clientY;
+});
+function endDrag(e) {
+  if (!drag || e.pointerId !== drag.id) return;
+  if (drag.mode === 'peel' || drag.mode === 'carry') egg.release(drag);
+  if (drag.mode === 'cube' && !drag.moved) click(drag.hit);
+  if (drag.mode === 'orbit') {
+    if (orbiting) snapView();
+    else closePanel();
+  }
+  orbiting = false; drag = null;
+  canvas.classList.remove('grabbing');
+}
+canvas.addEventListener('pointerup', endDrag);
+canvas.addEventListener('pointercancel', endDrag);
+canvas.addEventListener('pointerleave', () => { if (!drag) setHover(null); });
+
+function hover(e) {
+  const hit = pick(e);
+  const s = hit && hit.sticker && hit.sticker.userData.item ? hit.sticker : null;
+  setHover(s);
+}
+function setHover(s) {
+  if (hovered === s) return;
+  if (hovered) hovered.userData.liftT = 0;
+  hovered = s;
+  if (s) s.userData.liftT = 1;
+  canvas.classList.toggle('point', !!s);
+  dirty = 2;
+}
+
+function click(hit) {
+  if (hit && hit.sticker === egg.mesh) egg.tap(performance.now());
+  const id = hit && hit.sticker && hit.sticker.userData.item;
+  if (!id) { closePanel(); return; }
+  hideHint();
+  const it = ITEMS[id];
+  if (it.href) {
+    if (it.href.startsWith('mailto:')) location.href = it.href;
+    else window.open(it.href, '_blank', 'noopener');
+    return;
+  }
+  openPanel(id);
+}
+
+addEventListener('keydown', (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.key === 'Escape') { closePanel(); return; }
+  if (e.target.closest && e.target.closest('button, a') && (e.key === 'Enter' || e.key === ' ')) return;
+  const arrows = { ArrowRight: ['y', Math.PI / 2], ArrowLeft: ['y', -Math.PI / 2], ArrowUp: ['x', -Math.PI / 2], ArrowDown: ['x', Math.PI / 2] };
+  if (arrows[e.key]) {
+    e.preventDefault();
+    // a held key repeats faster than the turn animates; wait until the last step is nearly done
+    if (e.repeat && cubeGroup.quaternion.angleTo(targetQ) > 0.25) return;
+    stepView(...arrows[e.key]); hideHint(); return;
+  }
+  const mv = viewMove(e.code);
+  if (mv && !autoBusy()) {
+    if (e.repeat && (queue.length || (turning && performance.now() - turning.t0 < turning.dur * 0.8))) return;
+    if (turning) stepTurn(performance.now(), true);
+    doMove({ ...mv, dir: e.shiftKey ? -mv.dir : mv.dir }, 170);
+    hideHint();
+  }
+});
+
+// Standard notation relative to how you're holding the cube: F is the face toward
+// you, U the face on top, R the face on the right. M follows L, E follows D, S follows F.
+const VIEW_DIRS = {
+  KeyF: [0, 0, 1, 1], KeyB: [0, 0, -1, 1], KeyU: [0, 1, 0, 1], KeyD: [0, -1, 0, 1], KeyR: [1, 0, 0, 1], KeyL: [-1, 0, 0, 1],
+  KeyM: [-1, 0, 0, 0], KeyE: [0, -1, 0, 0], KeyS: [0, 0, 1, 0],
+};
+function viewMove(code) {
+  const d = VIEW_DIRS[code];
+  if (!d) return null;
+  const base = nearestOrient(TILT_INV.clone().multiply(targetQ));
+  const n = roundAxis(new THREE.Vector3(d[0], d[1], d[2]).applyQuaternion(base.clone().invert()));
+  const axis = n.x ? 'x' : n.y ? 'y' : 'z';
+  const sign = n[axis];
+  // clockwise as seen looking at that face
+  return { axis, layer: d[3] ? sign : 0, dir: -sign };
+}
+
+/* ------------------------------------------------------------------- panel */
+
+const panel = $('#panel');
+let panelOpen = false, piTimer = 0;
+function openPanel(id) {
+  const it = ITEMS[id], f = FACES[it.face];
+  $('#p-dot').style.setProperty('--c', f.color);
+  $('#p-kicker').textContent = f.name;
+  const title = $('#p-title');
+  title.textContent = '';
+  if (it.link) {
+    const a = document.createElement('a');
+    a.href = it.link[1]; a.target = '_blank'; a.rel = 'noopener';
+    a.textContent = it.full || it.title;
+    a.setAttribute('aria-label', `${it.full || it.title} (opens ${it.link[0]})`);
+    const arrow = document.createElement('span'); arrow.className = 'arrow'; arrow.textContent = '↗';
+    a.append(' ', arrow);
+    title.appendChild(a);
+  } else title.textContent = it.full || it.title;
+  $('#p-note').textContent = it.note || '';
+  $('#p-role').textContent = it.role || '';
+  $('#p-desc').textContent = it.desc || '';
+  $('#p-meta').textContent = it.meta || '';
+  $('#p-meta').hidden = !it.meta;
+  const list = $('#p-list'); list.innerHTML = '';
+  (it.list || []).forEach((t) => { const li = document.createElement('li'); li.textContent = t; list.appendChild(li); });
+  const extra = $('#p-extra'); extra.innerHTML = '';
+  clearInterval(piTimer);
+  if (it.extra === 'cube') {
+    extra.innerHTML = '<div class="p-actions"><button type="button" data-a="scramble">scramble it</button><button type="button" data-a="solve">solve it</button></div>';
+    extra.querySelector('[data-a=scramble]').onclick = () => { closePanel(); scramble(); };
+    extra.querySelector('[data-a=solve]').onclick = () => { closePanel(); solve(); };
+  } else if (it.extra === 'pi') {
+    const d = document.createElement('p'); d.className = 'digits'; extra.appendChild(d);
+    if (reduce) d.textContent = PI;
+    else {
+      let i = 0;
+      piTimer = setInterval(() => { i += 9; d.textContent = PI.slice(0, i); if (i >= PI.length) { d.textContent = PI; clearInterval(piTimer); } }, 16);
+    }
+  }
+  panel.classList.add('open'); panel.setAttribute('aria-hidden', 'false');
+  panelOpen = true; dirty = 2;
+}
+function closePanel() {
+  if (!panelOpen) return;
+  clearInterval(piTimer);
+  panel.classList.remove('open'); panel.setAttribute('aria-hidden', 'true');
+  panelOpen = false; dirty = 2;
+}
+$('#p-close').addEventListener('click', closePanel);
+
+/* --------------------------------------------------------------- controls */
+
+const nav = $('#faces');
+for (const k of NAV) {
+  const b = document.createElement('button');
+  b.type = 'button'; b.dataset.face = k;
+  b.innerHTML = `<i style="--c:${FACES[k].color}"></i><span>${FACES[k].name}</span>`;
+  b.setAttribute('aria-label', `Show ${FACES[k].name}`);
+  b.addEventListener('click', () => { goFace(k); hideHint(); });
+  nav.appendChild(b);
+}
+let navFace = '';
+function updateNav() {
+  const k = frontFace();
+  if (k === navFace) return;
+  navFace = k;
+  nav.querySelectorAll('button').forEach((b) => b.setAttribute('aria-current', String(b.dataset.face === k)));
+}
+$('#scramble').addEventListener('click', () => { scramble(); hideHint(); });
+$('#solve').addEventListener('click', () => solve());
+function updateControls() { $('#solve').hidden = history.length === 0; }
+
+/* --------------------------------------------------------------------- loop */
+
+let dirty = 3, last = performance.now(), shiftX = 0, shiftY = 0;
+function panelShift() {
+  if (!panelOpen) return [0, 0];
+  if (W >= 760) return [-(panel.offsetWidth + 24) / 2, 0];
+  return [0, -Math.min((panel.offsetHeight + 12) / 2, H * 0.28)];
+}
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = Math.min((now - last) / 1000, 0.05); last = now;
+  let active = !!drag;
+
+  if (!turning && queue.length) startTurn(now);
+  if (turning) { stepTurn(now); active = true; }
+
+  if (!orbiting && cubeGroup.quaternion.angleTo(targetQ) > 1e-4) {
+    cubeGroup.quaternion.slerp(targetQ, reduce ? 1 : 1 - Math.exp(-dt * 8));
+    active = true;
+  }
+
+  const [tx, ty] = panelShift();
+  const k = reduce ? 1 : 1 - Math.exp(-dt * 9);
+  if (Math.abs(tx - shiftX) > 0.1 || Math.abs(ty - shiftY) > 0.1) {
+    shiftX += (tx - shiftX) * k; shiftY += (ty - shiftY) * k; active = true;
+  }
+  cubeGroup.position.set(shiftX * wpp, -shiftY * wpp, 0);
+
+  if (egg.update(dt)) active = true;
+  for (const s of stickers) {
+    const u = s.userData;
+    if (u.egg && egg.state !== 'stuck') continue;
+    if (u.lift !== u.liftT) {
+      u.lift += (u.liftT - u.lift) * Math.min(1, dt * 14);
+      if (Math.abs(u.liftT - u.lift) < 0.01) u.lift = u.liftT;
+      s.position.copy(u.n).multiplyScalar(SURF + u.lift * 0.03);
+      s.material.emissiveIntensity = u.lift * 0.14;
+      active = true;
+    }
+  }
+
+  if (active || dirty > 0) {
+    const cubePx = 3 / wpp;
+    shadowEl.style.width = `${cubePx * 1.05}px`;
+    shadowEl.style.height = `${cubePx * 0.17}px`;
+    shadowEl.style.transform = `translate(${W / 2 + shiftX - cubePx * 0.525}px, ${H / 2 + shiftY + cubePx * 0.66}px)`;
+    renderer.render(scene, camera);
+    updateNav();
+    dirty = Math.max(0, dirty - 1);
+  }
+}
+
+/* --------------------------------------------------------------------- boot */
+
+resize();
+drawAll();
+cubeGroup.quaternion.copy(targetQ);
+const fontsReady = document.fonts
+  ? Promise.race([
+      Promise.all([document.fonts.load(`600 64px Inter`), document.fonts.load(`500 64px Inter`)]),
+      new Promise((r) => setTimeout(r, 1800)),
+    ])
+  : Promise.resolve();
+fontsReady.then(() => {
+  drawAll();
+  if (!reduce) {
+    randomMoves(14).forEach(applyInstant);
+    cubeGroup.quaternion.copy(TILT).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(0.5, -0.9, 0.15)));
+    setTimeout(() => solve(105), 450);
+  }
+  requestAnimationFrame(() => document.documentElement.classList.add('ready'));
+  updateControls();
+});
+if (document.fonts) document.fonts.ready.then(() => { drawAll(); egg.redraw(); });
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
