@@ -278,13 +278,13 @@ function homeSticker(g, f) {
   setFont(g, 600, size, -0.035);
   const w = g.measureText('Koreen').width;
   if (w > SW * 0.8) { size *= SW * 0.8 / w; setFont(g, 600, size, -0.035); }
-  const sub = SW * 0.095, lh = size * 1.02;
+  const sub = SW * 0.118, lh = size * 1.02;
   const top = cy - (size * 0.72 + lh + sub * 2.1) / 2 + size * 0.72;
   g.fillStyle = f.ink; g.textAlign = 'center'; g.textBaseline = 'alphabetic';
   g.fillText('Ezra', cx, top);
   g.fillText('Koreen', cx, top + lh);
   setFont(g, 500, sub, 0);
-  g.globalAlpha = 0.68;
+  g.globalAlpha = 0.84;
   g.fillText('CS @ Cornell', cx, top + lh + sub * 2.1);
   g.globalAlpha = 1;
 }
@@ -675,7 +675,7 @@ const egg = (() => {
     geo.computeBoundingSphere();
   }
 
-  const GROUND = -2.05, CARRY_Z = 1.8;
+  const GROUND = -2.05, CARRY_Z = 2.2, CARRY_MARGIN = 0.66, HOVER = 0.3;
   const E = {
     mesh, state: 'stuck', p: 0, pT: 0,
     clicks: [], vel: new THREE.Vector3(), spin: new THREE.Vector3(),
@@ -683,13 +683,24 @@ const egg = (() => {
   };
   const v3 = new THREE.Vector3(), q4 = new THREE.Quaternion();
 
+  // push a world-space point out of the cube (plus a margin) along the shortest way out
+  function keepOut(v, margin) {
+    cubeGroup.updateMatrixWorld(true);
+    const l = cubeGroup.worldToLocal(v.clone()), h = 1.5 + margin;
+    if (Math.abs(l.x) >= h || Math.abs(l.y) >= h || Math.abs(l.z) >= h) return v;
+    const pen = ['x', 'y', 'z'].map((k) => [h - Math.abs(l[k]), k]).sort((a, b) => a[0] - b[0]);
+    const k = pen[0][1];
+    l[k] = (l[k] < 0 ? -1 : 1) * h;
+    return v.copy(cubeGroup.localToWorld(l));
+  }
   function worldToScreen(v) { const s = v.clone().project(camera); return new THREE.Vector2((s.x + 1) / 2 * W, (1 - s.y) / 2 * H); }
   function slotPose() {
     cubeGroup.updateMatrixWorld(true);
     const p = cubie.localToWorld(homePos.clone());
     const q = cubie.getWorldQuaternion(new THREE.Quaternion()).multiply(homeQuat);
     const facing = new THREE.Vector3(0, 0, 1).applyQuaternion(q).dot(camera.position.clone().sub(p).normalize());
-    return { p, q, facing };
+    const nW = new THREE.Vector3(0, 0, 1).applyQuaternion(q);
+    return { p, q, facing, n: nW };
   }
 
   E.tap = (now) => {
@@ -733,19 +744,27 @@ const egg = (() => {
     } else if (d.mode === 'carry') {
       ndc.set((d.x / W) * 2 - 1, -(d.y / H) * 2 + 1);
       ray.setFromCamera(ndc, camera);
-      const t = (CARRY_Z - ray.ray.origin.z) / ray.ray.direction.z;
+      const cz = cubeGroup.getWorldPosition(new THREE.Vector3()).z + CARRY_Z;
+      const t = (cz - ray.ray.origin.z) / ray.ray.direction.z;
       const at = ray.ray.at(t, new THREE.Vector3());
       const slot = slotPose();
       E.magnet = slot.facing > 0.15 && worldToScreen(slot.p).distanceTo(new THREE.Vector2(d.x, d.y)) < 70;
-      if (E.magnet) { E.carryPos.copy(slot.p); E.carryQuat.copy(slot.q); }
-      else { E.carryPos.copy(at); E.carryQuat.identity(); }
+      if (E.magnet) { E.carryPos.copy(slot.p).addScaledVector(slot.n, HOVER); E.carryQuat.copy(slot.q); }
+      else { E.carryPos.copy(keepOut(at, CARRY_MARGIN)); E.carryQuat.identity(); }
     }
   };
   E.release = (d) => {
     if (d.mode === 'peel') E.pT = E.p > 0.5 ? 1 : 0.17;
     else if (d.mode === 'carry') {
       // a tap (no drag) on the fallen sticker also puts it back
-      if (E.magnet || !d.moved) { const s = slotPose(); E.state = 'attaching'; E.tw = { t: 0, p0: mesh.position.clone(), q0: mesh.quaternion.clone(), p1: s.p, q1: s.q }; }
+      if (E.magnet || !d.moved) {
+        const s = slotPose();
+        const into = { t: 0, p0: null, q0: null, p1: s.p, q1: s.q };
+        E.state = 'attaching';
+        // from the floor, first come round to a point out in front of the face, then press straight in
+        E.tw = E.magnet ? { ...into, p0: mesh.position.clone(), q0: mesh.quaternion.clone() }
+          : { t: 0, p0: mesh.position.clone(), q0: mesh.quaternion.clone(), p1: s.p.clone().addScaledVector(s.n, 1.2), q1: s.q, guard: true, next: into };
+      }
       else { E.state = 'falling'; E.vel.set(0, 0, 0); E.spin.set(0, 0, 0); }
     }
   };
@@ -777,6 +796,7 @@ const egg = (() => {
     if (st === 'falling') {
       E.vel.y -= 9.8 * dt;
       mesh.position.addScaledVector(E.vel, dt);
+      keepOut(mesh.position, 0.15);
       const w = E.spin.length();
       if (w > 0) mesh.quaternion.premultiply(q4.setFromAxisAngle(v3.copy(E.spin).normalize(), w * dt));
       E.p *= Math.exp(-dt * 4); shape(E.p);
@@ -788,8 +808,11 @@ const egg = (() => {
       T.t = Math.min(1, T.t + dt / (st === 'landing' ? 0.32 : 0.22));
       const k = 1 - Math.pow(1 - T.t, 3);
       mesh.position.lerpVectors(T.p0, T.p1, k);
+      if (st === 'landing') keepOut(mesh.position, 0.15);
+      if (T.guard) keepOut(mesh.position, CARRY_MARGIN);
       mesh.quaternion.slerpQuaternions(T.q0, T.q1, k);
       if (E.p > 0) { E.p *= Math.exp(-dt * 10); if (E.p < 0.002) E.p = 0; shape(E.p); }
+      if (T.t >= 1 && T.next) { E.tw = { ...T.next, p0: mesh.position.clone(), q0: mesh.quaternion.clone() }; return true; }
       if (T.t >= 1) {
         if (st === 'landing') { E.state = 'fallen'; E.p = 0; shape(0); }
         else {
@@ -804,6 +827,7 @@ const egg = (() => {
     if (st === 'carry') {
       const k = 1 - Math.exp(-dt * 18);
       mesh.position.lerp(E.carryPos, k);
+      keepOut(mesh.position, E.magnet ? 0.05 : CARRY_MARGIN);
       mesh.quaternion.slerp(E.carryQuat, k);
       return true;
     }
@@ -948,6 +972,14 @@ addEventListener('keydown', (e) => {
     // a held key repeats faster than the turn animates; wait until the last step is nearly done
     if (e.repeat && cubeGroup.quaternion.angleTo(targetQ) > 0.25) return;
     stepView(...arrows[e.key]); hideHint(); return;
+  }
+  // x, y, z: turn the whole cube like R, U, F (Shift for the reverse), relative to how you hold it
+  const CUBE_ROT = { KeyX: 'x', KeyY: 'y', KeyZ: 'z' };
+  if (CUBE_ROT[e.code]) {
+    if (e.repeat && cubeGroup.quaternion.angleTo(targetQ) > 0.25) return;
+    stepView(CUBE_ROT[e.code], e.shiftKey ? Math.PI / 2 : -Math.PI / 2);
+    hideHint();
+    return;
   }
   const mv = viewMove(e.code);
   if (mv && !autoBusy()) {
