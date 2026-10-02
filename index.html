@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#eeede8">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
     --ink: #141414;
@@ -22,7 +22,7 @@
   body {
     background: radial-gradient(120% 90% at 50% 42%, #f8f7f3 0%, #eeede8 58%, #e5e4de 100%);
     color: var(--ink);
-    font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace;
     -webkit-font-smoothing: antialiased;
     -webkit-tap-highlight-color: transparent;
   }
@@ -156,7 +156,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 const $ = (s) => document.querySelector(s);
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const touch = matchMedia('(pointer: coarse)').matches;
-const FAMILY = 'Inter, system-ui, -apple-system, "Segoe UI", sans-serif';
+const FAMILY = '"IBM Plex Mono", ui-monospace, Menlo, monospace';
 
 /* ------------------------------------------------------------------ content */
 
@@ -276,15 +276,18 @@ const cellXY = (row, col) => [col * CELL + INSET, row * CELL + INSET];
 function homeSticker(g, f) {
   const [x, y] = cellXY(1, 1), cx = x + SW / 2, cy = y + SW / 2;
   let size = SW * 0.25;
-  setFont(g, 600, size, -0.035);
+  setFont(g, 600, size, -0.01);
   const w = g.measureText('Koreen').width;
-  if (w > SW * 0.8) { size *= SW * 0.8 / w; setFont(g, 600, size, -0.035); }
+  if (w > SW * 0.8) { size *= SW * 0.8 / w; setFont(g, 600, size, -0.01); }
   const sub = SW * 0.118, lh = size * 1.02;
   const top = cy - (size * 0.72 + lh + sub * 2.1) / 2 + size * 0.72;
   g.fillStyle = f.ink; g.textAlign = 'center'; g.textBaseline = 'alphabetic';
   g.fillText('Ezra', cx, top);
   g.fillText('Koreen', cx, top + lh);
-  setFont(g, 500, sub, 0);
+  let subSize = sub;
+  setFont(g, 500, subSize, 0);
+  const sw = g.measureText('CS @ Cornell').width;
+  if (sw > SW * 0.8) { subSize *= SW * 0.8 / sw; setFont(g, 500, subSize, 0); }
   g.globalAlpha = 0.84;
   g.fillText('CS @ Cornell', cx, top + lh + sub * 2.1);
   g.globalAlpha = 1;
@@ -294,9 +297,9 @@ function itemSticker(g, f, row, col, it) {
   const [x, y] = cellXY(row, col), cx = x + SW / 2, cy = y + SW / 2;
   const lines = it.lines || [it.title];
   let size = SW * (it.big ? 0.4 : 0.19);
-  setFont(g, 600, size, -0.025);
+  setFont(g, 600, size, 0);
   const widest = Math.max(...lines.map((l) => g.measureText(l).width));
-  if (widest > SW * 0.78) { size *= SW * 0.78 / widest; setFont(g, 600, size, -0.025); }
+  if (widest > SW * 0.78) { size *= SW * 0.78 / widest; setFont(g, 600, size, 0); }
   const subSize = SW * 0.105, lh = size * 1.08;
   const blockH = size * 0.72 + (lines.length - 1) * lh + (it.sub ? subSize * 1.9 : 0);
   let by = cy - blockH / 2 + size * 0.72;
@@ -1136,7 +1139,7 @@ drawAll();
 cubeGroup.quaternion.copy(targetQ);
 const fontsReady = document.fonts
   ? Promise.race([
-      Promise.all([document.fonts.load(`600 64px Inter`), document.fonts.load(`500 64px Inter`)]),
+      Promise.all([document.fonts.load(`600 64px "IBM Plex Mono"`), document.fonts.load(`500 64px "IBM Plex Mono"`)]),
       new Promise((r) => setTimeout(r, 1800)),
     ])
   : Promise.resolve();
