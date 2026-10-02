@@ -165,6 +165,7 @@ const PI_DIGITS = '1415926535897932384626433832795028841971693993751058209749445
 const PI = '3.' + PI_DIGITS.match(/.{1,10}/g).join(' ');
 
 const ITEMS = {
+  about: { title: 'Ezra Koreen', kicker: 'about', role: 'CS @ Cornell', desc: 'I’m an undergraduate at Cornell University interested in quantitative finance and machine learning, and I love solving interesting puzzles.', custom: true },
   optiver: { title: 'Optiver', role: 'Quantitative Trading Intern', meta: 'Incoming · Summer 2027 · Chicago' },
   smbc: { title: 'SMBC', role: 'Quantitative Research Intern, Systematic Trading', meta: 'Jun – Aug 2026 · New York', desc: 'UST trade execution' },
   cuxr: { title: 'CUXR', full: 'Cornell University Extended Reality', role: 'Lead Software Engineer', meta: 'Sep 2025 – present · Ithaca', desc: 'Long-term memory systems for smart glasses' },
@@ -193,7 +194,7 @@ const ITEMS = {
 
 // r = screen-right and u = screen-up when the face is turned toward you
 const FACES = {
-  F: { name: 'home', color: '#f4f3ee', ink: '#141414', n: [0, 0, 1], r: [1, 0, 0], u: [0, 1, 0] },
+  F: { name: 'home', color: '#f4f3ee', ink: '#141414', n: [0, 0, 1], r: [1, 0, 0], u: [0, 1, 0], cells: { '1,1': 'about' } },
   R: { name: 'experience', color: '#dc3a34', ink: '#ffffff', n: [1, 0, 0], r: [0, 0, -1], u: [0, 1, 0], cells: { '0,0': 'cuxr', '0,2': 'smbc', '1,1': 'optiver', '2,0': 'cvc', '2,2': 'katz' } },
   L: { name: 'projects', color: '#ff8a1d', ink: '#1b1206', n: [-1, 0, 0], r: [0, 0, 1], u: [0, 1, 0], cells: { '0,0': 'polymarket', '0,2': 'blt', '1,1': 'prosperity', '2,0': 'pope', '2,2': 'pokerbot' } },
   U: { name: 'interests', color: '#15944c', ink: '#ffffff', n: [0, 1, 0], r: [1, 0, 0], u: [0, 0, -1], cells: { '1,0': 'pi', '1,1': 'rubiks', '1,2': 'zetamac' } },
@@ -218,7 +219,7 @@ for (const [k, f] of Object.entries(FACES)) for (const id of Object.values(f.cel
     const link = it.link ? ` · <a href="${it.link[1]}">${esc(it.link[0])}</a>` : '';
     return `<li>${head}${bits ? ' — ' + bits : ''}${link}${it.desc ? '<br>' + esc(it.desc) : ''}${it.list ? '<br>' + it.list.map(esc).join(' ') : ''}</li>`;
   }).join('')}</ul></section>`;
-  el.innerHTML = `<h1>Ezra Koreen</h1><p>CS @ Cornell</p>` +
+  el.innerHTML = `<h1>Ezra Koreen</h1><p>CS @ Cornell</p><p>${esc(ITEMS.about.desc)}</p>` +
     sec('Experience', ['optiver', 'smbc', 'cuxr', 'cvc', 'katz']) +
     sec('Projects', ['polymarket', 'blt', 'prosperity', 'pope', 'pokerbot']) +
     sec('Interests', ['rubiks', 'pi', 'zetamac']) +
@@ -315,7 +316,7 @@ function drawFace(k) {
   if (k === 'F') homeSticker(g, f);
   for (const [rc, id] of Object.entries(f.cells || {})) {
     const [r, c] = rc.split(',').map(Number);
-    itemSticker(g, f, r, c, ITEMS[id]);
+    if (!ITEMS[id].custom) itemSticker(g, f, r, c, ITEMS[id]);
   }
   setFont(g, 400, 10);
   f.tex.needsUpdate = true;
@@ -1014,7 +1015,7 @@ let panelOpen = false, piTimer = 0;
 function openPanel(id) {
   const it = ITEMS[id], f = FACES[it.face];
   $('#p-dot').style.setProperty('--c', f.color);
-  $('#p-kicker').textContent = f.name;
+  $('#p-kicker').textContent = it.kicker || f.name;
   const title = $('#p-title');
   title.textContent = '';
   if (it.link) {
