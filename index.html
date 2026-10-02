@@ -426,12 +426,37 @@ function stepTurn(now, force = false) {
   if (t >= 1) {
     T.members.forEach(snapCubie);
     turning = null;
-    if (!queue.length && isSolved()) history = [];
+    if (!queue.length && settleSolved()) history = [];
     updateControls();
   }
 }
-function isSolved() {
-  return cubies.every((c) => c.position.equals(c.userData.home) && Math.abs(c.quaternion.w) > 0.9999);
+// Solved = every piece carries the same rotation and sits where that rotation puts it
+// (so a cube solved "sideways" via slice moves still counts). The yellow centre is
+// blank, so its spin about its own axis can't be seen and is ignored.
+const YELLOW_CENTER = cubies.find((c) => c.userData.home.equals(new THREE.Vector3(0, 0, -1)));
+function solvedFrame() {
+  const ref = cubies[0].quaternion, inv = ref.clone().invert();
+  const v = new THREE.Vector3();
+  for (const c of cubies) {
+    if (c.position.distanceTo(v.copy(c.userData.home).applyQuaternion(ref)) > 0.01) return null;
+    const rel = inv.clone().multiply(c.quaternion);
+    if (c === YELLOW_CENTER) { if (v.set(0, 0, 1).applyQuaternion(rel).z < 0.99) return null; }
+    else if (Math.abs(rel.w) < 0.9999) return null;
+  }
+  return ref.clone();
+}
+const isSolved = () => !!solvedFrame();
+// Once solved, fold any overall rotation into the view so the pieces are back in
+// their home spots; nothing moves on screen, but the face buttons line up again.
+function settleSolved() {
+  const q = solvedFrame();
+  if (!q) return false;
+  const inv = q.clone().invert();
+  for (const c of cubies) { c.position.applyQuaternion(inv); c.quaternion.premultiply(inv); snapCubie(c); }
+  YELLOW_CENTER.quaternion.identity();
+  cubeGroup.quaternion.multiply(q);
+  targetQ.multiply(q);
+  return true;
 }
 const autoBusy = () => (turning && turning.auto) || queue.some((q) => q.auto);
 
