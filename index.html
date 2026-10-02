@@ -78,9 +78,6 @@
   .p-extra:empty { display: none; }
   .p-extra { margin-top: 18px; }
   .digits { font-size: 10.5px; line-height: 1.6; letter-spacing: .04em; color: #3a3935; font-variant-numeric: tabular-nums; word-spacing: .35em; }
-  .p-actions { display: flex; gap: 8px; }
-  .p-actions button { font-size: 13px; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line); background: #fff; }
-  .p-actions button:hover { border-color: rgba(0, 0, 0, .2); }
   #p-title a { color: inherit; text-decoration: underline; text-decoration-color: rgba(0, 0, 0, .18); text-decoration-thickness: 1.5px; text-underline-offset: 4px; transition: text-decoration-color .2s; }
   #p-title a:hover { text-decoration-color: var(--ink); }
   #p-title .arrow { font-size: .62em; color: var(--mute); vertical-align: .32em; text-decoration: none; display: inline-block; }
@@ -184,9 +181,9 @@ const ITEMS = {
   pokerbot: { title: 'PokerBot', role: 'Python · PyTorch · OpenCV · TypeScript', meta: 'Jul – Oct 2025',
     link: ['github.com/ezrakoreen/PokerVision', 'https://github.com/ezrakoreen/PokerVision'], desc: 'Smart glasses poker assistant' },
 
-  rubiks: { title: 'Rubik’s cubes', lines: ['Rubik’s', 'cubes'], role: 'PR: 3.43 seconds. You’re looking at one.', extra: 'cube' },
-  pi: { title: 'Digits of π', lines: ['π'], big: true, role: 'The first 700 decimal places.', extra: 'pi' },
-  zetamac: { title: 'Zetamac', role: '149 on Zetamac, the speed mental-math game.',
+  rubiks: { title: 'Rubik’s cubes', lines: ['Rubik’s', 'cubes'], role: '3.43 single, 6.93 ao5 (unofficial)' },
+  pi: { title: 'Digits of π', lines: ['π'], big: true, role: '700 digits', extra: 'pi' },
+  zetamac: { title: 'Zetamac', role: '149 high score',
     link: ['arithmetic.zetamac.com', 'https://arithmetic.zetamac.com'] },
 
   email: { title: 'Email', href: 'mailto:koreen.ezra@gmail.com', label: 'koreen.ezra@gmail.com' },
@@ -199,7 +196,7 @@ const FACES = {
   F: { name: 'home', color: '#f4f3ee', ink: '#141414', n: [0, 0, 1], r: [1, 0, 0], u: [0, 1, 0] },
   R: { name: 'experience', color: '#dc3a34', ink: '#ffffff', n: [1, 0, 0], r: [0, 0, -1], u: [0, 1, 0], cells: { '0,0': 'cuxr', '0,2': 'smbc', '1,1': 'optiver', '2,0': 'cvc', '2,2': 'katz' } },
   L: { name: 'projects', color: '#ff8a1d', ink: '#1b1206', n: [-1, 0, 0], r: [0, 0, 1], u: [0, 1, 0], cells: { '0,0': 'polymarket', '0,2': 'blt', '1,1': 'prosperity', '2,0': 'pope', '2,2': 'pokerbot' } },
-  U: { name: 'interests', color: '#15944c', ink: '#ffffff', n: [0, 1, 0], r: [1, 0, 0], u: [0, 0, -1], cells: { '1,0': 'rubiks', '1,1': 'pi', '1,2': 'zetamac' } },
+  U: { name: 'interests', color: '#15944c', ink: '#ffffff', n: [0, 1, 0], r: [1, 0, 0], u: [0, 0, -1], cells: { '1,0': 'pi', '1,1': 'rubiks', '1,2': 'zetamac' } },
   D: { name: 'contact', color: '#2260dc', ink: '#ffffff', n: [0, -1, 0], r: [1, 0, 0], u: [0, 0, 1], cells: { '1,0': 'email', '1,1': 'linkedin', '1,2': 'github' } },
   B: { name: 'back', color: '#ffd23c', ink: '#1b1606', n: [0, 0, -1], r: [-1, 0, 0], u: [0, 1, 0] },
 };
@@ -565,36 +562,41 @@ function twistFromDrag(d) {
   doMove({ axis, layer, dir: Math.sign(k[axis]) * Math.sign(bestDot) }, 190);
 }
 
-// Whole-cube turn from a background drag: the pointer grabs the nearest face of
-// a larger invisible box around the cube, and the cube turns about whichever of
-// its own axes moves that grabbed point most nearly along the drag.
-const GRAB = [3.2, 7].map((h) => new THREE.Box3(new THREE.Vector3(-h, -h, -h), new THREE.Vector3(h, h, h)));
+// Whole-cube turns. Each one is about one of the cube's own axes: the one nearest
+// to screen-vertical (a side-to-side drag spins it), screen-horizontal (an up/down
+// drag tumbles it), or pointing at you (a roll). Outside the cube, dragging *around*
+// it rolls it like a steering wheel; dragging toward or across it spins or tumbles.
+const WORLD_X = new THREE.Vector3(1, 0, 0), WORLD_Y = new THREE.Vector3(0, 1, 0), WORLD_Z = new THREE.Vector3(0, 0, 1);
+function nearestAxis(worldDir, q = cubeGroup.quaternion) {
+  return roundAxis(worldDir.clone().applyQuaternion(q.clone().invert()));
+}
+const ROT_SPEED = 0.0075;   // radians per pixel
+function cubeCenterScreen() { cubeGroup.updateMatrixWorld(true); return toScreen(new THREE.Vector3()); }
+// angle of a screen point around the cube's centre, counter-clockwise as seen
+const screenAngle = (c, x, y) => Math.atan2(-(y - c.y), x - c.x);
 function pickSpin(d) {
-  cubeGroup.updateMatrixWorld(true);
-  ndc.set((d.x0 / W) * 2 - 1, -(d.y0 / H) * 2 + 1);
-  ray.setFromCamera(ndc, camera);
-  const local = ray.ray.clone().applyMatrix4(cubeGroup.matrixWorld.clone().invert());
-  let p = null, box = null;
-  for (const b of GRAB) { p = local.intersectBox(b, new THREE.Vector3()); if (p) { box = b; break; } }
-  if (!p) return null;
-  const h = box.max.x;
-  const n = roundAxis(new THREE.Vector3(Math.abs(p.x) > h * 0.999 ? p.x : 0, Math.abs(p.y) > h * 0.999 ? p.y : 0, Math.abs(p.z) > h * 0.999 ? p.z : 0));
-  const drag2 = new THREE.Vector2(d.x - d.x0, d.y - d.y0).normalize();
-  const s0 = toScreen(p);
-  let best = null;
-  for (const a of Object.values(AXES)) {
-    if (Math.abs(a.dot(n)) > 0.5) continue;
-    const eps = 0.02;
-    const v = toScreen(p.clone().addScaledVector(new THREE.Vector3().crossVectors(a, p), eps)).sub(s0).divideScalar(eps);
-    const speed = v.length();
-    if (speed < 1e-3) continue;
-    const dot = v.clone().normalize().dot(drag2);
-    if (!best || Math.abs(dot) > Math.abs(best.dot)) best = { axis: a, dot };
+  const q0 = cubeGroup.quaternion.clone();
+  const c = cubeCenterScreen();
+  const r = new THREE.Vector2(d.x0 - c.x, d.y0 - c.y);
+  const dd = new THREE.Vector2(d.x - d.x0, d.y - d.y0);
+  const cubeR = 1.5 / wpp;   // half the cube's width on screen
+  const tangential = r.length() > cubeR * 0.85 ? Math.abs(r.x * dd.y - r.y * dd.x) / (r.length() * dd.length()) : 0;
+  if (tangential > 0.7) return { kind: 'roll', axis: nearestAxis(WORLD_Z), q0, c, a0: screenAngle(c, d.x0, d.y0) };
+  if (Math.abs(dd.x) >= Math.abs(dd.y)) return { kind: 'h', axis: nearestAxis(WORLD_Y), q0 };
+  return { kind: 'v', axis: nearestAxis(WORLD_X), q0 };
+}
+function wrapAngle(a) { return Math.atan2(Math.sin(a), Math.cos(a)); }
+function applySpin(S, x, y, x0, y0) {
+  let ang;
+  if (S.kind === 'roll') {
+    // distance travelled around the cube, so a quarter roll takes the same drag as the other turns
+    S.acc = (S.acc || 0) + wrapAngle(screenAngle(S.c, x, y) - (S.last ?? S.a0));
+    S.last = screenAngle(S.c, x, y);
+    ang = S.acc * Math.hypot(x0 - S.c.x, y0 - S.c.y) * ROT_SPEED;
   }
-  if (!best) return null;
-  best.q0 = cubeGroup.quaternion.clone();
-  best.d0 = drag2;
-  return best;
+  else if (S.kind === 'h') ang = (x - x0) * ROT_SPEED;
+  else ang = (y - y0) * ROT_SPEED;
+  cubeGroup.quaternion.copy(S.q0).multiply(_q.setFromAxisAngle(S.axis, ang));
 }
 
 
@@ -817,9 +819,43 @@ let drag = null, orbiting = false, hovered = null, interacted = false;
 
 function hideHint() { interacted = true; }
 
+const touches = new Map();   // active pointers, for two-finger gestures
+
+function startMulti() {
+  const [a, b] = [...touches.values()];
+  const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  drag = { mode: 'multi', ids: [...touches.keys()], mid0: mid, ang0: Math.atan2(-(b.y - a.y), b.x - a.x), q0: cubeGroup.quaternion.clone(), lock: null, acc: 0 };
+  orbiting = true;
+}
+function moveMulti() {
+  const [a, b] = drag.ids.map((id) => touches.get(id));
+  if (!a || !b) return;
+  const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  const ang = Math.atan2(-(b.y - a.y), b.x - a.x);
+  const twist = wrapAngle(ang - drag.ang0);
+  const span = Math.hypot(b.x - a.x, b.y - a.y) / 2;
+  const dx = mid.x - drag.mid0.x, dy = mid.y - drag.mid0.y;
+  if (!drag.lock) {
+    if (Math.abs(twist) * span > 14) drag.lock = { kind: 'roll', axis: nearestAxis(WORLD_Z, drag.q0) };
+    else if (Math.hypot(dx, dy) > 14) drag.lock = Math.abs(dx) >= Math.abs(dy)
+      ? { kind: 'h', axis: nearestAxis(WORLD_Y, drag.q0) } : { kind: 'v', axis: nearestAxis(WORLD_X, drag.q0) };
+    else return;
+  }
+  const L = drag.lock;
+  const angle = L.kind === 'roll' ? twist : L.kind === 'h' ? dx * ROT_SPEED : dy * ROT_SPEED;
+  cubeGroup.quaternion.copy(drag.q0).multiply(_q.setFromAxisAngle(L.axis, angle));
+  hideHint();
+}
+
 canvas.addEventListener('pointerdown', (e) => {
-  if (drag) return;
+  touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
   canvas.setPointerCapture(e.pointerId);
+  if (touches.size === 2 && drag && drag.mode !== 'multi' && !['peel', 'carry', 'egg', 'none'].includes(drag.mode)) {
+    startMulti();
+    canvas.classList.remove('grabbing');
+    return;
+  }
+  if (drag) return;
   // finish a user twist that is still animating so the layer math is exact
   if (turning && !turning.auto) stepTurn(performance.now(), true);
   if (egg.hit(e)) {
@@ -834,7 +870,9 @@ canvas.addEventListener('pointerdown', (e) => {
   setHover(null);
 });
 canvas.addEventListener('pointermove', (e) => {
+  if (touches.has(e.pointerId)) touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (!drag) { if (e.pointerType === 'mouse') hover(e); return; }
+  if (drag.mode === 'multi') { moveMulti(); return; }
   if (e.pointerId !== drag.id) return;
   drag.x = e.clientX; drag.y = e.clientY;
   const dist = Math.hypot(drag.x - drag.x0, drag.y - drag.y0);
@@ -842,13 +880,8 @@ canvas.addEventListener('pointermove', (e) => {
   if (drag.mode === 'peel' || drag.mode === 'carry' || drag.mode === 'none') { egg.move(drag); return; }
   if (drag.mode === 'orbit' && drag.moved) {
     if (!drag.spin) drag.spin = pickSpin(drag);
-    if (drag.spin) {
-      orbiting = true;
-      const S = drag.spin;
-      // how far the pointer has travelled in the direction the drag started
-      const along = (drag.x - drag.x0) * S.d0.x + (drag.y - drag.y0) * S.d0.y;
-      cubeGroup.quaternion.copy(S.q0).multiply(_q.setFromAxisAngle(S.axis, Math.sign(S.dot) * along * 0.0075));
-    }
+    orbiting = true;
+    applySpin(drag.spin, drag.x, drag.y, drag.x0, drag.y0);
     hideHint();
   } else if (drag.mode === 'cube' && drag.moved && !drag.done && dist > 14) {
     drag.done = true;
@@ -857,7 +890,13 @@ canvas.addEventListener('pointermove', (e) => {
   drag.px = e.clientX; drag.py = e.clientY;
 });
 function endDrag(e) {
-  if (!drag || e.pointerId !== drag.id) return;
+  touches.delete(e.pointerId);
+  if (!drag) return;
+  if (drag.mode === 'multi') {
+    if (drag.ids.includes(e.pointerId)) { snapView(); orbiting = false; drag = null; }
+    return;
+  }
+  if (e.pointerId !== drag.id) return;
   if (drag.mode === 'peel' || drag.mode === 'carry') egg.release(drag);
   if (drag.mode === 'cube' && !drag.moved) click(drag.hit);
   if (drag.mode === 'orbit') {
@@ -964,11 +1003,7 @@ function openPanel(id) {
   (it.list || []).forEach((t) => { const li = document.createElement('li'); li.textContent = t; list.appendChild(li); });
   const extra = $('#p-extra'); extra.innerHTML = '';
   clearInterval(piTimer);
-  if (it.extra === 'cube') {
-    extra.innerHTML = '<div class="p-actions"><button type="button" data-a="scramble">scramble it</button><button type="button" data-a="solve">solve it</button></div>';
-    extra.querySelector('[data-a=scramble]').onclick = () => { closePanel(); scramble(); };
-    extra.querySelector('[data-a=solve]').onclick = () => { closePanel(); solve(); };
-  } else if (it.extra === 'pi') {
+  if (it.extra === 'pi') {
     const d = document.createElement('p'); d.className = 'digits'; extra.appendChild(d);
     if (reduce) d.textContent = PI;
     else {
